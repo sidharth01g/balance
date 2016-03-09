@@ -49,7 +49,7 @@ def test_sinusoidal_theta():
     theta_array = []
     current_array = []
 
-    for angle in numpy.arange(-pi/2, pi/2, 0.1):
+    for angle in numpy.arange(-pi/2, pi/2, 0.01):
         theta = math.sin(angle)
         print('Theta: ' + str(theta*180/pi))
         curr = current(theta, theta_minus, kp, ki, kd)
