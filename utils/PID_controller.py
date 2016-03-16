@@ -2,7 +2,7 @@ from collections import deque
 import sys
 import math
 import numpy
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 pi = math.pi
 x = deque([0, 0, 0])
 y = deque([0 ,0, 0])
@@ -25,8 +25,8 @@ def y_n_PID(alpha, kp, ki, kd, x_n, x_n_1, x_n_2, y_n_1, y_n_2):
 
 def filter_PID(x_n, alpha, kp, ki, kd):
     global x, y, Ts
-    print x
-    print y
+    print(x)
+    print(y)
     print (Ts, kp, ki, kd,  x[0], x[1], x[2], y[1], y[2])
 
     x0 = x[0]
@@ -62,21 +62,23 @@ def main():
     for time in numpy.arange(t_min, t_max, Ts):
         theta = math.sin(2*pi*f*time)
         y_n =  filter_PID(theta, alpha, kp, ki, kd)
-        print y
+        print(y)
         theta_minus = theta
         theta_array.append(theta)
         y_array.append(y_n)
 
-    print len(theta_array)
-    print len(y_array)
+    print(len(theta_array))
+    print(len(y_array))
     print (theta_array)
     print (y_array)
+    """
     plt.subplot(211)
     plt.plot(theta_array)
     plt.subplot(212)
     plt.plot( y_array)
     # plt.axis('equal')
     plt.show()
+    """
 
 
 if __name__ == '__main__':

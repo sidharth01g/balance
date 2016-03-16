@@ -9,14 +9,19 @@ import time
 power_mgmt_1 = 0x6b
 power_mgmt_2 = 0x6c
 
+# Sampling interval
+Ts = None
+
 def read_byte(adr):
     return bus.read_byte_data(address, adr)
+
 
 def read_word(adr):
     high = bus.read_byte_data(address, adr)
     low = bus.read_byte_data(address, adr+1)
     val = (high << 8) + low
     return val
+
 
 def read_word_2c(adr):
     val = read_word(adr)
@@ -25,30 +30,85 @@ def read_word_2c(adr):
     else:
         return val
 
+
 def dist(a,b):
     return math.sqrt((a*a)+(b*b))
+
 
 def get_y_rotation(x,y,z):
     radians = math.atan2(x, dist(y,z))
     return -math.degrees(radians)
+
 
 def get_x_rotation(x,y,z):
     radians = math.atan2(y, dist(x,z))
     return math.degrees(radians)
 
 
+def set_Ts(t):
+    global Ts
+    Ts = t
 
-# bus = smbus.SMBus(0) # or 
-bus = smbus.SMBus(1) # for Revision 2 boards
-address = 0x68       # This is the address value read via the i2cdetect command
 
-# Now wake the 6050 up as it starts in sleep mode
-bus.write_byte_data(address, power_mgmt_1, 0)
+def get_Ts():
+    global Ts
+    return Ts
+
+
+def prepare_sensor():
+    # bus = smbus.SMBus(0) # or 
+    global bus
+    global address
+    bus = smbus.SMBus(1) # for Revision 2 boards
+    address = 0x68       # This is the address value read via the i2cdetect command
+
+    # Now wake the 6050 up as it starts in sleep mode
+    bus.write_byte_data(address, power_mgmt_1, 0)
+
+
+def read_angle(angle_type):
+    """angle_type: 'pitch' or 'roll'
+    """
+    accel_xout = read_word_2c(0x3b)
+    accel_yout = read_word_2c(0x3d)
+    accel_zout = read_word_2c(0x3f)
+
+    accel_xout_scaled = accel_xout / 16384.0
+    accel_yout_scaled = accel_yout / 16384.0
+    accel_zout_scaled = accel_zout / 16384.0
+
+    pitch = (180/math.pi)*math.atan((accel_yout_scaled)/(math.sqrt(accel_xout_scaled*accel_xout_scaled +accel_zout_scaled*accel_zout_scaled )))
+    roll = (180/math.pi)*math.atan(-accel_xout_scaled/accel_zout_scaled)
+
+    if angle_type.lower() == 'pitch':
+        return pitch
+    elif angle_type.lower() == 'roll':
+        return roll
+    else:
+        return None
+
+def sample_angle(angle_type):
+    global Ts
+    while True:
+        angle = read_angle(angle_type)
+        time.sleep(Ts)
+        # print('Angle(' + angle_type +'): ' + str(angle))
+        print('Angle(' + angle_type +'): ' + '-'*int(70+(100/360)*(angle)))
+
+
+def show_angle():
+    set_Ts(0.05)
+    prepare_sensor()
+    angle_type = 'roll'
+    sample_angle(angle_type)
+
+
 def read():
-    for i in range(1, 100):
+    global Ts
+    while True:
         os.system('clear')
-        print("gyro data")
-        print("---------")
+        message = 'Gyroscope Data:'
+        print('\n' + message + '\n' + '=' * len(message))
 
         gyro_xout = read_word_2c(0x43)
         gyro_yout = read_word_2c(0x45)
@@ -58,9 +118,8 @@ def read():
         print("gyro_yout: ", gyro_yout, " scaled: ", (gyro_yout / 131))
         print("gyro_zout: ", gyro_zout, " scaled: ", (gyro_zout / 131))
 
-        print()
-        print("accelerometer data")
-        print("------------------")
+        message = 'Accelerometer Data:'
+        print('\n' + message + '\n' + '=' * len(message))
 
         accel_xout = read_word_2c(0x3b)
         accel_yout = read_word_2c(0x3d)
@@ -76,7 +135,21 @@ def read():
 
         print("x rotation: " , get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled))
         print("y rotation: " , get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled))
-        time.sleep(0.1)
+
+        message = 'Angular Data:'
+        print('\n' + message + '\n' + '=' * len(message))
+       
+        pitch = (180/math.pi)*math.atan((accel_yout_scaled)/(math.sqrt(accel_xout_scaled*accel_xout_scaled +accel_zout_scaled*accel_zout_scaled )))
+        roll = (180/math.pi)*math.atan(-accel_xout_scaled/accel_zout_scaled)
+        print('Pitch: ' + str(pitch))
+        print('Roll: ' + str(roll))
+        time.sleep(Ts)
+
 
 if __name__ == '__main__':
+    """
+    set_Ts(0.05)
+    prepare_sensor()
     read()
+    """
+    show_angle()
