@@ -2,58 +2,31 @@
 
 import smbus
 import math
+import os
 import time
-from MPU6050 import MPU6050
-from PID import PID
-import motor as MOTOR
 
-gyro_scale = 131.0
-accel_scale = 16384.0
-RAD_TO_DEG = 57.29578
-M_PI = 3.14159265358979323846
+# Power management registers
+power_mgmt_1 = 0x6b
+power_mgmt_2 = 0x6c
 
-address = 0x68  # This is the address value read via the i2cdetect command
-bus = smbus.SMBus(1)  # or bus = smbus.SMBus(1) for Revision 2 boards
+def read_byte(adr):
+    return bus.read_byte_data(address, adr)
 
-now = time.time()
+def read_word(adr):
+    high = bus.read_byte_data(address, adr)
+    low = bus.read_byte_data(address, adr+1)
+    val = (high << 8) + low
+    return val
 
-K = 0.98
-K1 = 1 - K
+def read_word_2c(adr):
+    val = read_word(adr)
+    if (val >= 0x8000):
+        return -((65535 - val) + 1)
+    else:
+        return val
 
-time_diff = 0.01
-
-sensor = MPU6050(bus, address, "MPU6050")
-sensor.read_raw_data()   # Reads current data from the sensor
-
-rate_gyroX = 0.0
-rate_gyroY = 0.0
-rate_gyroZ = 0.0
-
-gyroAngleX = 0.0 
-gyroAngleY = 0.0 
-gyroAngleZ = 0.0 
-
-raw_accX = 0.0
-raw_accY = 0.0
-raw_accZ = 0.0
-
-rate_accX = 0.0
-rate_accY = 0.0
-rate_accZ = 0.0
-
-accAngX = 0.0
-
-CFangleX = 0.0
-CFangleX1 = 0.0
-
-K = 0.98
-
-FIX = -12.89
-
-#print "{0:.4f} {1:.2f} {2:.2f} {3:.2f} {4:.2f} {5:.2f} {6:.2f}".format( time.time() - now, (last_x), gyro_total_x, (last_x), (last_y), gyro_total_y, (last_y))
-
-def dist(a, b):
-    return math.sqrt((a * a) + (b * b))
+def dist(a,b):
+    return math.sqrt((a*a)+(b*b))
 
 def get_y_rotation(x,y,z):
     radians = math.atan2(x, dist(y,z))
@@ -63,48 +36,47 @@ def get_x_rotation(x,y,z):
     radians = math.atan2(y, dist(x,z))
     return math.degrees(radians)
 
-p=PID(1.0,-0.04,0.0)
-p.setPoint(0.0)
 
-for i in range(0, int(300.0 / time_diff)):
-    time.sleep(time_diff - 0.005) 
-    
-    sensor.read_raw_data()
-    
-    # Gyroscope value Degree Per Second / Scalled Data
-    rate_gyroX = sensor.read_scaled_gyro_x()
-    rate_gyroY = sensor.read_scaled_gyro_y()
-    rate_gyroZ = sensor.read_scaled_gyro_z()
-   
-    # The angle of the Gyroscope
-    gyroAngleX += rate_gyroX * time_diff 
-    gyroAngleY += rate_gyroY * time_diff 
-    gyroAngleZ += rate_gyroZ * time_diff 
 
-    # Accelerometer Raw Value
-    raw_accX = sensor.read_raw_accel_x()
-    raw_accY = sensor.read_raw_accel_y()
-    raw_accZ = sensor.read_raw_accel_z()
-    
-    # Accelerometer value Degree Per Second / Scalled Data
-    rate_accX = sensor.read_scaled_accel_x()
-    rate_accY = sensor.read_scaled_accel_y()
-    rate_accZ = sensor.read_scaled_accel_z()
-    
-    # http://ozzmaker.com/2013/04/18/success-with-a-balancing-robot-using-a-raspberry-pi/
-    accAngX = ( math.atan2(rate_accX, rate_accY) + M_PI ) * RAD_TO_DEG
-    CFangleX = K * ( CFangleX + rate_gyroX * time_diff) + (1 - K) * accAngX
-    
-    # http://blog.bitify.co.uk/2013/11/reading-data-from-mpu-6050-on-raspberry.html 
-    accAngX1 = get_x_rotation(rate_accX, rate_accY, rate_accX)
-    CFangleX1 = ( K * ( CFangleX1 + rate_gyroX * time_diff) + (1 - K) * accAngX1 )
-    
-    # Followed the Second example because it gives resonable pid reading
-    pid = p.update(CFangleX1)
-    
-    if(pid > 0):
-        MOTOR.forward(pid)
-    else:
-        MOTOR.backward( (pid*-1) )
-    
-    #print "{0:.2f} {1:.2f} {2:.2f} {3:.2f} | {4:.2f} {5:.2f} | {6:.2f}".format( gyroAngleX, gyroAngleY , accAngX, CFangleX, accAngX1, CFangleX1, pid)
+# bus = smbus.SMBus(0) # or 
+bus = smbus.SMBus(1) # for Revision 2 boards
+address = 0x68       # This is the address value read via the i2cdetect command
+
+# Now wake the 6050 up as it starts in sleep mode
+bus.write_byte_data(address, power_mgmt_1, 0)
+def read():
+    for i in range(1, 100):
+        os.system('clear')
+        print("gyro data")
+        print("---------")
+
+        gyro_xout = read_word_2c(0x43)
+        gyro_yout = read_word_2c(0x45)
+        gyro_zout = read_word_2c(0x47)
+
+        print("gyro_xout: ", gyro_xout, " scaled: ", (gyro_xout / 131))
+        print("gyro_yout: ", gyro_yout, " scaled: ", (gyro_yout / 131))
+        print("gyro_zout: ", gyro_zout, " scaled: ", (gyro_zout / 131))
+
+        print()
+        print("accelerometer data")
+        print("------------------")
+
+        accel_xout = read_word_2c(0x3b)
+        accel_yout = read_word_2c(0x3d)
+        accel_zout = read_word_2c(0x3f)
+
+        accel_xout_scaled = accel_xout / 16384.0
+        accel_yout_scaled = accel_yout / 16384.0
+        accel_zout_scaled = accel_zout / 16384.0
+
+        print("accel_xout: ", accel_xout, " scaled: ", accel_xout_scaled)
+        print("accel_yout: ", accel_yout, " scaled: ", accel_yout_scaled)
+        print("accel_zout: ", accel_zout, " scaled: ", accel_zout_scaled)
+
+        print("x rotation: " , get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled))
+        print("y rotation: " , get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled))
+        time.sleep(0.1)
+
+if __name__ == '__main__':
+    read()
